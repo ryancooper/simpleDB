@@ -17,6 +17,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe
  */
 public class Catalog {
+	
+	private ConcurrentHashMap<Integer, Table> _catalog;
+	private ConcurrentHashMap<String, Integer> _nameToId;
 
     /**
      * Constructor.
@@ -24,6 +27,8 @@ public class Catalog {
      */
     public Catalog() {
         // some code goes here
+    	_catalog = new ConcurrentHashMap<Integer, Table>();
+    	_nameToId = new ConcurrentHashMap<String, Integer>();
     }
 
     /**
@@ -37,6 +42,13 @@ public class Catalog {
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
+    	// the name may be null or empty, what to do with these tables, do we have to resolve
+    	// the conflicts for them. Right now maybe not, only resolve conflicts for named table
+    	_catalog.put(file.getId(), new Table(file, name, pkeyField));
+    	if (name != null && name.length() > 0)
+    		if (_nameToId.replace(name, file.getId()) == null) 
+    			_nameToId.put(name, file.getId());
+    	
     }
 
     public void addTable(DbFile file, String name) {
@@ -60,7 +72,10 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+    	// return 0;
+    	if (name == null || name.length() == 0 || !_nameToId.containsKey(name))
+    		throw new NoSuchElementException();
+    	return _nameToId.get(name);
     }
 
     /**
@@ -71,7 +86,10 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        // return null;
+    	if (!_catalog.containsKey(tableid))
+    		throw new NoSuchElementException();
+    	return _catalog.get(tableid).getDbFile().getTupleDesc();
     }
 
     /**
@@ -82,27 +100,45 @@ public class Catalog {
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        // return null;
+    	if (!_catalog.containsKey(tableid))
+    		throw new NoSuchElementException();
+    	return _catalog.get(tableid).getDbFile();
     }
 
     public String getPrimaryKey(int tableid) {
         // some code goes here
-        return null;
+        // return null;
+    	// right now for tableid that does not exist, I just return null
+    	// maybe this is not suitable because there is no way to distinguish this case with
+    	// the situation that the corresponding pkey of the tableid is null
+    	if (_catalog.containsKey(tableid))
+    		return _catalog.get(tableid).getPrimaryKeyField();
+    	return null;
     }
 
     public Iterator<Integer> tableIdIterator() {
         // some code goes here
-        return null;
+        // return null;
+    	return _catalog.keySet().iterator();
     }
 
     public String getTableName(int id) {
         // some code goes here
-        return null;
+        // return null;
+    	// right now for tableid that does not exist, I just return null
+    	// maybe this is not suitable because there is no way to distinguish this case with
+    	// the situation that the corresponding table name of the tableid is null
+    	if (_catalog.containsKey(id))
+    		return _catalog.get(id).getName();
+    	return null;
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
         // some code goes here
+    	_nameToId.clear();
+    	_catalog.clear();
     }
     
     /**
@@ -151,6 +187,8 @@ public class Catalog {
                 addTable(tabHf,name,primaryKey);
                 System.out.println("Added table : " + name + " with schema " + t);
             }
+            // add code to close the br
+            br.close();
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(0);
